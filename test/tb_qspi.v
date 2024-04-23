@@ -1,18 +1,9 @@
-`default_nettype none
-`timescale 1ns / 100ps
+`default_nettype none `timescale 1ns / 100ps
 
 /* This testbench just instantiates the module and makes some convenient wires
    that can be driven / tested by the cocotb test.py.
 */
-module tb ();
-
-`ifdef COCOTB_SIM
-initial begin
-  $dumpfile ("tb.vcd");
-  $dumpvars (0, tb);
-  #1;
-end
-`endif
+module tb_qspi ();
 
   // Wire up the inputs and outputs:
   reg clk;
@@ -67,5 +58,27 @@ end
       .clk    (clk),      // clock
       .rst_n  (rst_n)     // not reset
   );
+
+  // Simulate latency
+  wire [3:0] buffered_qspi_data;
+  reg [19:0] data_buffer;
+  always @(posedge clk) begin
+    data_buffer <= {data_buffer[15:0], buffered_qspi_data};
+  end
+  assign qspi_data_in = (latency_cfg < 1) ? buffered_qspi_data :
+                        data_buffer[(latency_cfg - 1) * 4 +:4];
+
+  // Simulated QSPI PMOD
+  sim_qspi_pmod qspi (
+    .qspi_data_in(qspi_data_out & qspi_data_oe),
+    .qspi_data_out(buffered_qspi_data),
+    .qspi_clk(qspi_clk_out),
+
+    .qspi_flash_select(qspi_flash_select),
+    .qspi_ram_a_select(qspi_ram_a_select),
+    .qspi_ram_b_select(qspi_ram_b_select)
+  );
+
+  defparam qspi.INIT_FILE = `PROG_FILE;
 
 endmodule
